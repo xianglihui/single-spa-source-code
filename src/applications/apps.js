@@ -24,40 +24,51 @@ import { isInBrowser } from "../utils/runtime-environment.js";
 import { assign } from "../utils/assign";
 
 const apps = [];
-
+// 将应用分为四大类
 export function getAppChanges() {
+  // 需要被移除的应用
   const appsToUnload = [],
+  // 需要被卸载的应用
     appsToUnmount = [],
+  // 需要被加载的应用
     appsToLoad = [],
+  // 需要被挂载的应用
     appsToMount = [];
 
   // We re-attempt to download applications in LOAD_ERROR after a timeout of 200 milliseconds
   const currentTime = new Date().getTime();
 
   apps.forEach((app) => {
+    // boolean，应用是否应该被激活
     const appShouldBeActive =
       app.status !== SKIP_BECAUSE_BROKEN && shouldBeActive(app);
 
     switch (app.status) {
+       // 需要被加载的应用
       case LOAD_ERROR:
         if (appShouldBeActive && currentTime - app.loadErrorTime >= 200) {
           appsToLoad.push(app);
         }
         break;
+        // 需要被加载的应用
       case NOT_LOADED:
       case LOADING_SOURCE_CODE:
         if (appShouldBeActive) {
           appsToLoad.push(app);
         }
         break;
+        // 状态为xx的应用
       case NOT_BOOTSTRAPPED:
       case NOT_MOUNTED:
         if (!appShouldBeActive && getAppUnloadInfo(toName(app))) {
+          // 需要被移除的应用
           appsToUnload.push(app);
         } else if (appShouldBeActive) {
+          // 需要被挂载的应用
           appsToMount.push(app);
         }
         break;
+        // 需要被卸载的应用，已经处于挂载状态，但现在路由已经变了的应用需要被卸载
       case MOUNTED:
         if (!appShouldBeActive) {
           appsToUnmount.push(app);
@@ -447,19 +458,22 @@ function sanitizeCustomProps(customProps) {
 function sanitizeActiveWhen(activeWhen) {
   console.log("activeWhen", activeWhen);
   let activeWhenArray = Array.isArray(activeWhen) ? activeWhen : [activeWhen];
+  // 保证数组中每个元素都是一个函数
   activeWhenArray = activeWhenArray.map((activeWhenOrPath) =>
     typeof activeWhenOrPath === "function"
       ? activeWhenOrPath
+      // activeWhen如果是一个路径，则保证成一个函数
       : pathToActiveWhen(activeWhenOrPath)
   );
-
+ // 返回一个函数，函数返回一个 boolean 值
   return (location) =>
     activeWhenArray.some((activeWhen) => activeWhen(location));
 }
 
 export function pathToActiveWhen(path, exactMatch) {
+  // 根据用户提供的baseURL，生成正则表达式
   const regex = toDynamicPathValidatorRegex(path, exactMatch);
-
+// 函数返回boolean值，判断当前路由是否匹配用户给定的路径
   return (location) => {
     // compatible with IE10
     let origin = location.origin;

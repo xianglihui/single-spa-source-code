@@ -19,24 +19,39 @@ import {
 } from "./lifecycle.helpers.js";
 import { getProps } from "./prop.helpers.js";
 import { assign } from "../utils/assign.js";
-
+/**
+ * 通过微任务加载子应用，其实singleSpa中很多地方都用了微任务
+ * 这里最终是return了一个promise出行，在注册了加载子应用的微任务
+ * 概括起来就是：
+ *  更改app.status为LOAD_SOURCE_CODE => NOT_BOOTSTRAP，当然还有可能是LOAD_ERROR
+ *  执行加载函数，并将props传递给加载函数，给用户处理props的一个机会,因为这个props是一个完备的props
+ *  验证加载函数的执行结果，必须为promise，且加载函数内部必须return一个对象
+ *  这个对象是子应用的，对象中必须包括各个必须的生命周期函数
+ *  然后将生命周期方法通过一个函数包裹并挂载到app对象上
+ *  app加载完成，删除app.loadPromise
+ * @param {*} app 
+ */
 export function toLoadPromise(app) {
   return Promise.resolve().then(() => {
     if (app.loadPromise) {
+      // 说明app已经在被加载
       return app.loadPromise;
     }
-
+    // 只有状态为NOT_LOADED和LOAD_ERROR的app才可以被加载
     if (app.status !== NOT_LOADED && app.status !== LOAD_ERROR) {
       return app;
     }
-
+    // 设置App的状态
     app.status = LOADING_SOURCE_CODE;
 
     let appOpts, isUserErr;
 
     return (app.loadPromise = Promise.resolve()
       .then(() => {
+        // 执行app的加载函数，并给子应用传递props => 用户自定义的customProps和内置的比如应用的名称、singleSpa实例
+        // 其实这里有个疑问，这个props是怎么传递给子应用的，感觉跟后面的生命周期函数有关
         const loadPromise = app.loadApp(getProps(app));
+        // 加载函数需要返回一个promise
         if (!smellsLikeAPromise(loadPromise)) {
           // The name of the app will be prepended to this error message inside of the handleAppError function
           isUserErr = true;
@@ -51,13 +66,16 @@ export function toLoadPromise(app) {
             )
           );
         }
+        // 这里很重要，这个val就是示例项目中加载函数中return出来的window.singleSpa，这个属性是子应用打包时设置的
         return loadPromise.then((val) => {
           app.loadErrorTime = null;
 
           appOpts = val;
 
           let validationErrMessage, validationErrCode;
+          // 以下进行一系列的验证，已window.singleSpa为例说明，简称g.s
 
+          // g.s必须为对象
           if (typeof appOpts !== "object") {
             validationErrCode = 34;
             if (__DEV__) {
