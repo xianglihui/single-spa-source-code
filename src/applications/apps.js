@@ -22,7 +22,7 @@ import {
 import { formatErrorMessage } from "./app-errors.js";
 import { isInBrowser } from "../utils/runtime-environment.js";
 import { assign } from "../utils/assign";
-
+// 已经挂载的应用列表
 const apps = [];
 // 将应用分为四大类
 export function getAppChanges() {
@@ -35,7 +35,7 @@ export function getAppChanges() {
   // 需要被挂载的应用
     appsToMount = [];
 
-  // We re-attempt to download applications in LOAD_ERROR after a timeout of 200 milliseconds
+  // 超时200ms后，会再次尝试在 LOAD_ERROR 中下载应用程序
   const currentTime = new Date().getTime();
 
   apps.forEach((app) => {
@@ -81,19 +81,20 @@ export function getAppChanges() {
   return { appsToUnload, appsToUnmount, appsToLoad, appsToMount };
 }
 
+// 获取已经挂载的应用，即状态为 MOUNTED 的应用
 export function getMountedApps() {
   return apps.filter(isActive).map(toName);
 }
-
+// 获取app名称集合
 export function getAppNames() {
   return apps.map(toName);
 }
 
-// used in devtools, not (currently) exposed as a single-spa API
+// 原有应用配置数据 devtools中使用
 export function getRawAppData() {
   return [...apps];
 }
-
+// 获取应用状态，指：NOT_LOADED, NOT_MOUNTED, MOUNTED, ...
 export function getAppStatus(appName) {
   const app = find(apps, (app) => toName(app) === appName);
   return app ? app.status : null;
@@ -127,10 +128,12 @@ export function registerApplication(
   );
   // 判断应用是否重名
   if (getAppNames().indexOf(registration.name) !== -1)
+  // 如果重名
     throw Error(
       formatErrorMessage(
         21,
         __DEV__ &&
+        // "应用已经注册过了！"
           `There is already an app registered with name ${registration.name}`,
         registration.name
       )
@@ -140,7 +143,7 @@ export function registerApplication(
     // 给每个应用增加一个内置属性
     assign(
       {
-        loadErrorTime: null,
+        loadErrorTime: null,// 加载错误时间
         // 最重要的，应用的状态
         status: NOT_LOADED,
         parcels: {},
@@ -160,34 +163,37 @@ export function registerApplication(
     reroute();
   }
 }
-
+// 获取当前激活函数：遍历所有应用，通过匹配应用标识符，得到应用的name
 export function checkActivityFunctions(location = window.location) {
   return apps.filter((app) => app.activeWhen(location)).map(toName);
 }
-
+// 取消注册应用
 export function unregisterApplication(appName) {
+  // 应用本来就没有被注册过，无法取消注册
   if (apps.filter((app) => toName(app) === appName).length === 0) {
     throw Error(
       formatErrorMessage(
         25,
         __DEV__ &&
+        // 此应该本来就未被注册过，因此无法取消注册
           `Cannot unregister application '${appName}' because no such application has been registered`,
         appName
       )
     );
   }
-
+  // 取消注册应用，卸载完成后，从应用列表中移除
   return unloadApplication(appName).then(() => {
     const appIndex = apps.map(toName).indexOf(appName);
     apps.splice(appIndex, 1);
   });
 }
-
+// 卸载应用
 export function unloadApplication(appName, opts = { waitForUnmount: false }) {
   if (typeof appName !== "string") {
     throw Error(
       formatErrorMessage(
         26,
+        // 应用名称必须为字符串！
         __DEV__ && `unloadApplication requires a string 'appName'`
       )
     );
@@ -198,6 +204,7 @@ export function unloadApplication(appName, opts = { waitForUnmount: false }) {
       formatErrorMessage(
         27,
         __DEV__ &&
+        // "app没注册，无需卸载
           `Could not unload application '${appName}' because no such application has been registered`,
         appName
       )
@@ -207,12 +214,14 @@ export function unloadApplication(appName, opts = { waitForUnmount: false }) {
   const appUnloadInfo = getAppUnloadInfo(toName(app));
   if (opts && opts.waitForUnmount) {
     // We need to wait for unmount before unloading the app
-
+    // 在unloading前，需要等待unmount完app
     if (appUnloadInfo) {
       // Someone else is already waiting for this, too
+      // 别人也在等待
       return appUnloadInfo.promise;
     } else {
       // We're the first ones wanting the app to be resolved.
+      // 没有人在等，直接卸载
       const promise = new Promise((resolve, reject) => {
         addAppToUnload(app, () => promise, resolve, reject);
       });
@@ -221,7 +230,7 @@ export function unloadApplication(appName, opts = { waitForUnmount: false }) {
   } else {
     /* We should unmount the app, unload it, and remount it immediately.
      */
-
+     // 我们应该卸载应用程序，卸载完成后，立即重装它
     let resultPromise;
 
     if (appUnloadInfo) {
@@ -239,14 +248,15 @@ export function unloadApplication(appName, opts = { waitForUnmount: false }) {
     return resultPromise;
   }
 }
-
+  // 立即卸载应用程序
 function immediatelyUnloadApp(app, resolve, reject) {
-  toUnmountPromise(app)
-    .then(toUnloadPromise)
+  toUnmountPromise(app) // 先unmount
+    .then(toUnloadPromise) // 再unload
     .then(() => {
       resolve();
       setTimeout(() => {
         // reroute, but the unload promise is done
+        // 卸载应用已经完成，然后 reroute
         reroute();
       });
     })
@@ -261,20 +271,23 @@ function validateRegisterWithArguments(
   activeWhen,
   customProps
 ) {
+  // 应用名称校验
   if (typeof name !== "string" || name.length === 0)
     throw Error(
       formatErrorMessage(
         20,
         __DEV__ &&
+        // throw Error("应用名称必须是字符串");
           `The 1st argument to registerApplication must be a non-empty string 'appName'`
       )
     );
-
+// 装载函数校验
   if (!appOrLoadApp)
     throw Error(
       formatErrorMessage(
         23,
         __DEV__ &&
+        // throw Error("异步函数，bootstrap, mount, unmount 必须要有");
           "The 2nd argument to registerApplication must be an application or loading application function"
       )
     );
@@ -284,6 +297,7 @@ function validateRegisterWithArguments(
       formatErrorMessage(
         24,
         __DEV__ &&
+        // "必须是函数， 如：location => location.has.startsWith('#/app')"
           "The 3rd argument to registerApplication must be an activeWhen function"
       )
     );
@@ -293,6 +307,7 @@ function validateRegisterWithArguments(
       formatErrorMessage(
         22,
         __DEV__ &&
+        // throw Error("customProps必须是对象");
           "The optional 4th argument is a customProps and must be an object"
       )
     );
