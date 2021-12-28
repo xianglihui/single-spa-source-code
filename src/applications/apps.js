@@ -287,7 +287,7 @@ function validateRegisterWithArguments(
       formatErrorMessage(
         23,
         __DEV__ &&
-        // throw Error("异步函数，bootstrap, mount, unmount 必须要有");
+        // registerApplication的第二个参数必须是应用程序或加载应用程序函数;
           "The 2nd argument to registerApplication must be an application or loading application function"
       )
     );
@@ -318,7 +318,7 @@ function validateRegisterWithArguments(
  */
 
 export function validateRegisterWithConfig(config) {
-  // 异常判断，应用的配置对象不能是数组或者null
+  // 1. 异常判断，应用的配置对象不能是数组或者null
   if (Array.isArray(config) || config === null)
     throw Error(
       formatErrorMessage(
@@ -326,20 +326,21 @@ export function validateRegisterWithConfig(config) {
         __DEV__ && "Configuration object can't be an Array or null!"
       )
     );
-  // 配置对象只能包括这四个key
+  // 2. 应用配置必须是指定的几个关键字
   const validKeys = ["name", "app", "activeWhen", "customProps"];
-  // 找到配置对象存在的无效的key
+  // 过滤函数，将不是 validKeys 中的key，过滤出来。
   const invalidKeys = Object.keys(config).reduce(
     (invalidKeys, prop) =>
       validKeys.indexOf(prop) >= 0 ? invalidKeys : invalidKeys.concat(prop),
     []
   );
-  // 如果存在无效的key，则抛出一个错误
+  // 如果存在无效的key，则抛出一个错误,表示书写不合法
   if (invalidKeys.length !== 0)
     throw Error(
       formatErrorMessage(
         38,
         __DEV__ &&
+        // 配置对象只接受 validKeys 中的属性，其他的无效
           `The configuration object accepts only: ${validKeys.join(
             ", "
           )}. Invalid keys: ${invalidKeys.join(", ")}.`,
@@ -347,12 +348,13 @@ export function validateRegisterWithConfig(config) {
         invalidKeys.join(", ")
       )
     );
-  // 验证应用名称，只能是字符串，且不能为空
+ // 3. 应用名称存在校验
   if (typeof config.name !== "string" || config.name.length === 0)
     throw Error(
       formatErrorMessage(
         20,
         __DEV__ &&
+        // 应用名称必须存在，且不能是空字符串
           "The config.name on registerApplication must be a non-empty string"
       )
     );
@@ -382,14 +384,16 @@ export function validateRegisterWithConfig(config) {
       formatErrorMessage(
         24,
         __DEV__ &&
+        // activeWhen 必须是字符串，或者函数或者数组
           "The config.activeWhen on registerApplication must be a string, function or an array with both"
       )
     );
-  // 传递给子应用的props对象必须是一个对象
+  // 5. 自定义属性校验， 必须是一个对象
   if (!validCustomProps(config.customProps))
     throw Error(
       formatErrorMessage(
         22,
+        // customProps 必须是对象，不能是函数或者数组，也不能为空
         __DEV__ && "The optional config.customProps must be an object"
       )
     );
@@ -418,13 +422,13 @@ function sanitizeArguments(
 
   // 初始化应用配置对象
   const registration = {
-    name: null,
-    loadApp: null,
-    activeWhen: null,
-    customProps: null,
+    name: null, // 应用名称
+    loadApp: null, // promise函数加载app的函数
+    activeWhen: null, // 当前激活的标识
+    customProps: null, // 自定义属性，用于向子应用传递
   };
 
-  // 注册应用的时候传递的参数是对象
+  // 注册应用的时候传递的参数是对象,校验合法后，进行赋值
   if (usingObjectAPI) {
     // 先做一层校验
     validateRegisterWithConfig(appNameOrConfig);
@@ -472,6 +476,7 @@ function sanitizeCustomProps(customProps) {
  */
 function sanitizeActiveWhen(activeWhen) {
   console.log("activeWhen", activeWhen);
+  // activeWhen 返回一个函数，将location传入 (location) => location.hash.startsWith('#/app1'); 调用后返回一个字符串
   let activeWhenArray = Array.isArray(activeWhen) ? activeWhen : [activeWhen];
   // 保证数组中每个元素都是一个函数
   activeWhenArray = activeWhenArray.map((activeWhenOrPath) =>
@@ -482,9 +487,12 @@ function sanitizeActiveWhen(activeWhen) {
   );
  // 返回一个函数，函数返回一个 boolean 值
   return (location) =>
-    activeWhenArray.some((activeWhen) => activeWhen(location));
+    activeWhenArray.some((activeWhen) => activeWhen(location)); // 调用用户配置的函数，传入location
 }
 
+// activeWhen传入的不是函数，而是字符串或者数组，则特殊处理
+// '/app1', '/users/:userId/profile', '/pathname/#/hash' ['/pathname/#/hash', '/app1']
+// 具体见官方文档api，有详细说明：https://zh-hans.single-spa.js.org/docs/api
 export function pathToActiveWhen(path, exactMatch) {
   // 根据用户提供的baseURL，生成正则表达式
   const regex = toDynamicPathValidatorRegex(path, exactMatch);
@@ -507,15 +515,15 @@ function toDynamicPathValidatorRegex(path, exactMatch) {
   let lastIndex = 0,
     inDynamic = false,
     regexStr = "^";
-
+// 添加 / 前缀
   if (path[0] !== "/") {
     path = "/" + path;
   }
-
+// /app1
   for (let charIndex = 0; charIndex < path.length; charIndex++) {
     const char = path[charIndex];
-    const startOfDynamic = !inDynamic && char === ":";
-    const endOfDynamic = inDynamic && char === "/";
+    const startOfDynamic = !inDynamic && char === ":";// 当前字符是：
+    const endOfDynamic = inDynamic && char === "/";// 当前字符是 /
     if (startOfDynamic || endOfDynamic) {
       appendToRegex(charIndex);
     }
