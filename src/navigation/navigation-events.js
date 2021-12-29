@@ -1,3 +1,4 @@
+// 导航事件
 import { reroute } from "./reroute.js";
 import { find } from "../utils/find.js";
 import { formatErrorMessage } from "../applications/app-errors.js";
@@ -9,13 +10,14 @@ import { isStarted } from "../start.js";
  * single-spa has ensured that the correct applications are
  * unmounted and mounted.
  */
+// 捕获事件监听器，但是现在不会去调用，只是收集。直到single-spa已经将该卸载的应用卸载并该挂载的应用成功挂载完成后，再在代码里调用
 const capturedEventListeners = {
   hashchange: [],
   popstate: [],
 };
 
 export const routingEventsListeningTo = ["hashchange", "popstate"];
-
+// 导航到某个url
 export function navigateToUrl(obj) {
   let url;
   if (typeof obj === "string") {
@@ -35,43 +37,51 @@ export function navigateToUrl(obj) {
       formatErrorMessage(
         14,
         __DEV__ &&
+        // navigateToUrl最好是要给字符串
           `singleSpaNavigate/navigateToUrl must be either called with a string url, with an <a> tag as its context, or with an event whose currentTarget is an <a> tag`
       )
     );
   }
 
-  const current = parseUri(window.location.href);
-  const destination = parseUri(url);
-
+  const current = parseUri(window.location.href);// a标签，有href地址为location.href
+  const destination = parseUri(url);// a标签，有href地址为用户输入的地址
+// 1.hash路由
   if (url.indexOf("#") === 0) {
     window.location.hash = destination.hash;
+      // 2.域名不一致，以用户输入地址为准
   } else if (current.host !== destination.host && destination.host) {
+    // test
     if (process.env.BABEL_ENV === "test") {
       return { wouldHaveReloadedThePage: true };
     } else {
       window.location.href = url;
     }
-  } else if (
+  }
+  // 3.域名一致，并且pathname和search一致 
+  else if (
     destination.pathname === current.pathname &&
     destination.search === current.search
   ) {
     window.location.hash = destination.hash;
   } else {
+     // 4.不同的域名、pathname、参数
     // different path, host, or query params
     window.history.pushState(null, null, url);
   }
 }
-
+// 依次调用保存好的事件函数
 export function callCapturedEventListeners(eventArguments) {
   if (eventArguments) {
     const eventType = eventArguments[0].type;
+    // 仅针对 popstate，hashchange事件类型
     if (routingEventsListeningTo.indexOf(eventType) >= 0) {
+      // 调用之前保存好的事件函数，依次执行
       capturedEventListeners[eventType].forEach((listener) => {
         try {
           // The error thrown by application event listener should not break single-spa down.
           // Just like https://github.com/single-spa/single-spa/blob/85f5042dff960e40936f3a5069d56fc9477fac04/src/navigation/reroute.js#L140-L146 did
           listener.apply(this, eventArguments);
-        } catch (e) {
+        } catch (e) {// 应用程序事件函数执行引发的错误，不应该破坏单个spa
           setTimeout(() => {
             throw e;
           });
@@ -80,13 +90,13 @@ export function callCapturedEventListeners(eventArguments) {
     }
   }
 }
-
+// 是否在客户端更改路由后触发single-spa重新路由。默认为false，设置为true时不会重新路由
 let urlRerouteOnly;
 
 export function setUrlRerouteOnly(val) {
   urlRerouteOnly = val;
 }
-
+// url路由变化，触发single-spa重新路由
 function urlReroute() {
   reroute([], arguments);
 }

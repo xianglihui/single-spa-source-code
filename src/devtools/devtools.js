@@ -5,10 +5,10 @@ import { toLoadPromise } from "../lifecycles/load";
 import { toBootstrapPromise } from "../lifecycles/bootstrap";
 
 export default {
-  getRawAppData,
+  getRawAppData,// 注册的app列表
   reroute,
   NOT_LOADED,
-  toLoadPromise,
-  toBootstrapPromise,
-  unregisterApplication,
+  toLoadPromise,// 加载
+  toBootstrapPromise,// 启动
+  unregisterApplication,// 取消注册
 };

@@ -1,14 +1,16 @@
 import { objectType, toName } from "./app.helpers";
-
+// 错误队列
 let errorHandlers = [];
-
+// 处理app错误
 export function handleAppError(err, app, newStatus) {
   const transformedErr = transformErr(err, app, newStatus);
 
   if (errorHandlers.length) {
+  // 如果错误队列中有值，则遍历调用，并传入transformedErr
     errorHandlers.forEach((handler) => handler(transformedErr));
   } else {
     setTimeout(() => {
+      // 否则则直接调用transformedErr
       throw transformedErr;
     });
   }
@@ -19,6 +21,7 @@ export function addErrorHandler(handler) {
     throw Error(
       formatErrorMessage(
         28,
+        // handler 必须是一个函数
         __DEV__ && "a single-spa error handler must be a function"
       )
     );
@@ -32,6 +35,7 @@ export function removeErrorHandler(handler) {
     throw Error(
       formatErrorMessage(
         29,
+        // handler 必须是一个函数
         __DEV__ && "a single-spa error handler must be a function"
       )
     );
@@ -46,7 +50,7 @@ export function removeErrorHandler(handler) {
 
   return removedSomething;
 }
-
+// 报告错误信息
 export function formatErrorMessage(code, msg, ...args) {
   return `single-spa minified message #${code}: ${
     msg ? msg + " " : ""

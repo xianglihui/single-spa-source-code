@@ -31,8 +31,14 @@ import { assign } from "../utils/assign.js";
  *  app加载完成，删除app.loadPromise
  * @param {*} app 
  */
+// 调用loadApp，传递props，
+// 分为三个阶段
+// 1.修改状态为：LOADING_SOURCE_CODE
+// 2.返回一个promise，待 reroute的Promise.all执行，调用用户传入的loadApp，返回一个promise
+// 3.待callAllEventListeners执行完后，更新状态为NOT_BOOTSTRAPPED
 export function toLoadPromise(app) {
   return Promise.resolve().then(() => {
+    // 避免重复调用
     if (app.loadPromise) {
       // 说明app已经在被加载
       return app.loadPromise;
@@ -41,10 +47,10 @@ export function toLoadPromise(app) {
     if (app.status !== NOT_LOADED && app.status !== LOAD_ERROR) {
       return app;
     }
-    // 设置App的状态
+    // 设置App的状态 状态改为正在加载中
     app.status = LOADING_SOURCE_CODE;
 
-    let appOpts, isUserErr;
+    let appOpts, isUserErr;// 标识loadApps 和 用户输入错误
 
     return (app.loadPromise = Promise.resolve()
       .then(() => {
@@ -59,6 +65,7 @@ export function toLoadPromise(app) {
             formatErrorMessage(
               33,
               __DEV__ &&
+              // 'loadApps 必须是返回promise的函数
                 `single-spa loading function did not return a promise. Check the second argument to registerApplication('${toName(
                   app
                 )}', loadingFunction, activityFunction)`,
@@ -72,7 +79,7 @@ export function toLoadPromise(app) {
 
           appOpts = val;
 
-          let validationErrMessage, validationErrCode;
+          let validationErrMessage, validationErrCode;// 错误信息和错误码
           // 以下进行一系列的验证，已window.singleSpa为例说明，简称g.s
 
           // g.s必须为对象
@@ -88,6 +95,7 @@ export function toLoadPromise(app) {
             Object.prototype.hasOwnProperty.call(appOpts, "bootstrap") &&
             !validLifecycleFn(appOpts.bootstrap)
           ) {
+            // hrow Error('bootstrap, mount, unmount 必须是函数')
             validationErrCode = 35;
             if (__DEV__) {
               validationErrMessage = `does not export a valid bootstrap function or array of functions`;
@@ -108,7 +116,7 @@ export function toLoadPromise(app) {
             }
           }
 
-          const type = objectType(appOpts);
+          const type = objectType(appOpts);// parcel 或 application 这里是 => application
 
           if (validationErrCode) {
             let appOptsStr;
@@ -131,7 +139,7 @@ export function toLoadPromise(app) {
             handleAppError(validationErrMessage, app, SKIP_BECAUSE_BROKEN);
             return app;
           }
-
+           // overlays合并
           if (appOpts.devtools && appOpts.devtools.overlays) {
             app.devtools.overlays = assign(
               {},
@@ -139,15 +147,16 @@ export function toLoadPromise(app) {
               appOpts.devtools.overlays
             );
           }
-
+          // 状态改为待启动
           app.status = NOT_BOOTSTRAPPED;
+          // 兼容数组的写法
           app.bootstrap = flattenFnArray(appOpts, "bootstrap");
           app.mount = flattenFnArray(appOpts, "mount");
           app.unmount = flattenFnArray(appOpts, "unmount");
           app.unload = flattenFnArray(appOpts, "unload");
           app.timeouts = ensureValidAppTimeouts(appOpts.timeouts);
 
-          delete app.loadPromise;
+          delete app.loadPromise; // 删除
 
           return app;
         });
@@ -157,13 +166,14 @@ export function toLoadPromise(app) {
 
         let newStatus;
         if (isUserErr) {
+          // 出错了，改成出错的状态，记录错误时间并上报
           newStatus = SKIP_BECAUSE_BROKEN;
         } else {
           newStatus = LOAD_ERROR;
           app.loadErrorTime = new Date().getTime();
         }
         handleAppError(err, app, newStatus);
-
+         // 返回的还是之前的app
         return app;
       }));
   });
